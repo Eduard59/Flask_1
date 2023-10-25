@@ -57,5 +57,9 @@ def send_email_to_sendpulse(email):
     else:
         return "Error when sending email."
 
+@app.route('/')
+def home():
+    return 'Hello, World!'
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=False, port=5000)
