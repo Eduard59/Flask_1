@@ -1,63 +1,61 @@
-import json
 import os
-import stripe 
-# import psycopg2  # assuming you're using PostgreSQL
-# from dotenv import load_dotenv
-from flask import Flask, jsonify, request, abort
-import logging
-# from database import handle_checkout_session_completed, handle_invoice_payment_succeeded
-from datetime import datetime
-# В файле app.py
-# import database
-
-
-# logging.basicConfig(level=logging.DEBUG)
-# Load environment variables from the .env file
-# load_dotenv()
-# The library needs to be configured with your account's secret key.
-# Ensure the key is kept out of any version control system you might be using.
-stripe.api_key = os.getenv('STRIPE_API_KEY')
-# This is your Stripe CLI webhook secret for testing your endpoint locally.
-endpoint_secret = os.getenv('ENDPOINT_SECRET')
+import requests
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-@app.errorhandler(400)
-def bad_request_error(error):
-    return jsonify({"error": "Bad Request", "message": str(error)}), 400 
+@app.route('/flexbe_webhook', methods=['POST'])
+def receive_from_flexbe():
+    data = request.json
+    email = data.get("client", {}).get("email")
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    payload = request.data
-    sig_header = request.headers['STRIPE_SIGNATURE']
-    event = None
+    if not email:
+        return jsonify({"status": "error", "message": "Email not provided!"})
 
-    try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, endpoint_secret
-        )
-    except ValueError as e:
-        print("Invalid payload")
-        abort(400)
-    except stripe.error.SignatureVerificationError as e:
-        print("Invalid signature")
-        abort(400)
+    send_email_to_sendpulse(email)
+    return jsonify({"status": "success"})
 
-    # Handle the event - подключено эвентов из страйпа
-    # event_type = event['type']
-    # if event_type == 'checkout.session.completed':
-    #     handle_checkout_session_completed(event, app)
-    # elif event_type == 'invoice.payment_succeeded':
-    #     handle_invoice_payment_succeeded(event, app)
+SENDPULSE_CLIENT_ID = '9a2ab93315d7bff8084901a2ef513fc2'
+SENDPULSE_CLIENT_SECRET = '6bc6636dc1a5ea55299f0923e9024ef8'
 
-    return '', 200
+def get_access_token():
+    AUTH_URL = "https://api.sendpulse.com/oauth/access_token"
+    auth_data = {
+        "grant_type": "client_credentials",
+        "client_id": SENDPULSE_CLIENT_ID,
+        "client_secret": SENDPULSE_CLIENT_SECRET
+    }
+    response = requests.post(AUTH_URL, json=auth_data)
+    if response.status_code == 200:
+        response_data = response.json()
+        return response_data.get("access_token")
+    else:
+        return None
 
+def send_email_to_sendpulse(email):
+    access_token = get_access_token()
+    if not access_token:
+        return "Error: Failed to get token for sending email."
 
-@app.route('/')
-def home():
-    return 'Hello, World!'
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    url = "https://api.sendpulse.com/addressbooks/647205/emails"
+    data = {
+        "emails": [email]
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    print("Sending email...")
+    print("Response status code:", response.status_code)
+    print("Response text:", response.text)
+    
+    if response.json().get("result"):
+        return "Email successfully sent!"
+    else:
+        return "Error when sending email."
 
-
-# # ПОТОМ ВЫКЛЮЧИТЬ debug=True НУЖНО
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=10000, debug=False)
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
