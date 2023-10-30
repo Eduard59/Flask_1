@@ -8,12 +8,18 @@ app = Flask(__name__)
 def receive_from_flexbe():
     data = request.json
     email = data.get("client", {}).get("email")
+    phone = data.get("client", {}).get("phone")  # Добавляем эту строку
 
     if not email:
         return jsonify({"status": "error", "message": "Email not provided!"})
 
+    if not phone:
+        return jsonify({"status": "error", "message": "Phone number not provided!"})  # Добавляем эту строку
+
     send_email_to_sendpulse(email)
+    # Здесь можно добавить код, который будет что-то делать с номером телефона, например, отправлять СМС
     return jsonify({"status": "success"})
+
 
 SENDPULSE_CLIENT_ID = '9a2ab93315d7bff8084901a2ef513fc2'
 SENDPULSE_CLIENT_SECRET = '6bc6636dc1a5ea55299f0923e9024ef8'
